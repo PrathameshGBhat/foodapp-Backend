@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -18,6 +19,7 @@ import com.cts.clients.InventoryClient;
 import com.cts.clients.PaymentClient;
 import com.cts.dtos.InventoryUpdateItem;
 import com.cts.dtos.InventoryUpdateRequest;
+import com.cts.dtos.NotificationDto;
 import com.cts.dtos.OrderItemDto;
 import com.cts.dtos.OrdersDto;
 import com.cts.entities.CartItemResponse;
@@ -26,6 +28,7 @@ import com.cts.entities.OrderStatus;
 import com.cts.entities.OrdersRequest;
 import com.cts.entities.Orders;
 import com.cts.repository.OrderRepository;
+import com.notificationservice.service.RestaurantClient;
 
 @Service
 @Transactional
@@ -45,6 +48,13 @@ public class OrderServiceImpl implements OrderService {
     private PaymentClient paymentClient;
     @Autowired
     private InventoryClient inventoryClient;
+    
+    @Autowired
+    private KafkaTemplate<String, NotificationDto> kafkaTemplate;
+
+    @Autowired
+    private RestaurantClient restaurantClient;
+
 
     @Override
     @Transactional(readOnly = true)
@@ -66,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrdersDto addOrders(OrdersRequest req) {
+
         Integer cartId = req.getCartId();
         if (cartId == null) {
             logger.error("❌ Cart ID is required");
@@ -78,6 +89,7 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalArgumentException("Cart not found for id: " + cartId);
         }
 
+        // -------------------- CREATE ORDER --------------------
         Orders entity = new Orders();
         entity.setOrderStatus(OrderStatus.PLACED);
         entity.setCustomerId(req.getCustomerId());
@@ -88,14 +100,13 @@ public class OrderServiceImpl implements OrderService {
         entity.setUpdatedAt(now);
 
         Double subtotal = null;
-        try {
-            subtotal = cart.getTotalCartPrice();
-        } catch (Throwable t) {  }
+        try { subtotal = cart.getTotalCartPrice(); } catch (Throwable ignored) {}
         if (subtotal == null) {
-            try { subtotal = cart.getTotalCartPrice(); } catch (Throwable t) {  }
+            try { subtotal = cart.getTotalCartPrice(); } catch (Throwable ignored) {}
         }
         entity.setSubTotal(subtotal != null ? subtotal : 0.0);
 
+        // -------------------- ADD ITEMS --------------------
         if (cart.getItems() != null) {
             List<com.cts.entities.OrderItem> items = new ArrayList<>();
             for (CartItemResponse ci : cart.getItems()) {
@@ -103,16 +114,16 @@ public class OrderServiceImpl implements OrderService {
                 oi.setMenuItemId(ci.getItemId());
                 oi.setName(ci.getName());
                 oi.setUnitPrice(ci.getPrice());
+
                 Integer qty = ci.getQuantity();
                 if (qty == null) {
                     if (ci.getTotalItemPrice() != null && ci.getPrice() != null && ci.getPrice() != 0) {
                         qty = (int) Math.round(ci.getTotalItemPrice() / ci.getPrice());
                         if (qty <= 0) qty = 1;
-                    } else {
-                        qty = 1;
-                    }
+                    } else qty = 1;
                 }
                 oi.setQuantity(qty);
+
                 if (ci.getTotalItemPrice() != null) {
                     oi.setItemTotal(ci.getTotalItemPrice());
                 } else if (oi.getUnitPrice() != null) {
@@ -120,17 +131,43 @@ public class OrderServiceImpl implements OrderService {
                 } else {
                     oi.setItemTotal(0.0);
                 }
-                oi.setOrder(entity); 
+
+                oi.setOrder(entity);
                 items.add(oi);
             }
             entity.setItems(items);
         }
 
+        // ---------- SAVE ----------
         Orders saved = orderRepository.save(entity);
-        logger.info("✅ Order saved with ID: {}, Status: PLACED", saved.getOrderId());
+        logger.info("✅ Order saved with ID: {}", saved.getOrderId());
+
+        // ==================================================================
+        //                 🔥 FETCH vendorId FROM RESTAURANT-SERVICE
+        // ==================================================================
+        var restaurant = restaurantClient.getRestaurantById(req.getRestaurantId());
+        if (restaurant == null || restaurant.getVendorId() == null) {
+            throw new IllegalStateException("VendorId missing for restaurantId: " + req.getRestaurantId());
+        }
+
+        Long vendorId = restaurant.getVendorId();
+
+        // ==================================================================
+        //                     🔥 SEND KAFKA NOTIFICATION
+        // ==================================================================
+        NotificationDto notification = new NotificationDto();
+        notification.setOrderId(saved.getOrderId());
+        notification.setRestaurantId(saved.getRestaurantId());
+        notification.setVendorId(vendorId);
+        notification.setMessage("New order placed");
+        notification.setTimestamp(LocalDateTime.now());
+
+        kafkaTemplate.send("order_notifications", notification);
+        logger.info("📩 Notification sent to vendorId {}", vendorId);
 
         return convertToDto(saved);
     }
+
     private InventoryUpdateRequest buildInventoryUpdateRequestFromOrder1(Orders order) {
     	 
         InventoryUpdateRequest req = new InventoryUpdateRequest();
