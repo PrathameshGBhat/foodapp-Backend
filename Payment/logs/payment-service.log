@@ -1,0 +1,54 @@
+2025-11-11T16:29:14.909+05:30 ERROR 21672 --- [payment-service] [restartedMain] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Failed to bind properties under 'logging.level.com.cts' to org.springframework.boot.logging.LogLevel:
+
+    Property: logging.level.com.cts
+    Value: "DEBUG  # Replace with your actual base package if different"
+    Origin: class path resource [application.properties] - 37:23
+    Reason: failed to convert java.lang.String to org.springframework.boot.logging.LogLevel (caused by java.lang.IllegalArgumentException: No enum constant org.springframework.boot.logging.LogLevel.DEBUG  # Replace with your actual base package if different)
+
+Action:
+
+Update your application's configuration. The following values are valid:
+
+    DEBUG
+    ERROR
+    FATAL
+    INFO
+    OFF
+    TRACE
+    WARN
+
+2025-11-11T16:29:46.862+05:30 ERROR 9652 --- [payment-service] [restartedMain] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Failed to bind properties under 'logging.level.com.cts' to org.springframework.boot.logging.LogLevel:
+
+    Property: logging.level.com.cts
+    Value: "DEBUG  # Replace with your actual base package if different"
+    Origin: class path resource [application.properties] - 37:23
+    Reason: failed to convert java.lang.String to org.springframework.boot.logging.LogLevel (caused by java.lang.IllegalArgumentException: No enum constant org.springframework.boot.logging.LogLevel.DEBUG  # Replace with your actual base package if different)
+
+Action:
+
+Update your application's configuration. The following values are valid:
+
+    DEBUG
+    ERROR
+    FATAL
+    INFO
+    OFF
+    TRACE
+    WARN
+
