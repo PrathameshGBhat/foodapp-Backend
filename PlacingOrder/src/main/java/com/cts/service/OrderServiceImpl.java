@@ -162,7 +162,8 @@ public class OrderServiceImpl implements OrderService {
         notification.setMessage("New order placed");
         notification.setTimestamp(LocalDateTime.now());
 
-        kafkaTemplate.send("order_notifications", notification);
+//        Sending topic order_placed
+        kafkaTemplate.send("order_placed", notification);
         logger.info("📩 Notification sent to vendorId {}", vendorId);
 
         return convertToDto(saved);
