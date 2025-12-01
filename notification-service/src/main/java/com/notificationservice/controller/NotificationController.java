@@ -3,12 +3,12 @@ package com.notificationservice.controller;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.notificationservice.dto.OrdersDto;
+import com.notificationservice.dto.VendorNotificationPayload;
 import com.notificationservice.service.NotificationService;
 
 @RestController
 @RequestMapping("/api/notification")
-@CrossOrigin // ONLY if frontend calls this directly
+@CrossOrigin
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -18,14 +18,14 @@ public class NotificationController {
     }
 
     @PostMapping("/send")
-    public ResponseEntity<?> sendNotification(@RequestBody OrdersDto order) {
+    public ResponseEntity<?> sendNotification(@RequestBody VendorNotificationPayload payload) {
 
-        // Basic validation (don't send garbage to service)
-        if (order == null || order.getOrderId() == null || order.getRestaurantId() == null) {
-            return ResponseEntity.badRequest().body("Invalid order payload");
+        if (payload == null || payload.getOrderId() == null || payload.getVendorId() == null) {
+            return ResponseEntity.badRequest().body("Invalid notification payload");
         }
 
-        notificationService.processOrderAndNotify(order);
-        return ResponseEntity.ok("Notification forwarded to Kafka");
+        notificationService.processOrderAndNotify(payload);
+
+        return ResponseEntity.ok("Notification processed");
     }
 }
